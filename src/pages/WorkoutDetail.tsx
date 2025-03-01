@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, ChevronLeft, ChevronRight, CheckCircle, Award, Info } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, CheckCircle, Award, Info, Play } from 'lucide-react';
 import { useWorkout } from '../context/WorkoutContext';
 import { ProgressEntry } from '../types';
+import ExerciseTimer from '../components/ExerciseTimer';
+import ExerciseVideo from '../components/ExerciseVideo';
 
 const WorkoutDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +17,9 @@ const WorkoutDetail: React.FC = () => {
   const [rating, setRating] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
   const [showInstructions, setShowInstructions] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
+  const [exerciseTimeSpent, setExerciseTimeSpent] = useState<Record<string, number>>({});
+  const [canProceed, setCanProceed] = useState(false);
   
   const workout = workouts.find(w => w.id === id);
   
@@ -45,6 +50,8 @@ const WorkoutDetail: React.FC = () => {
     } else {
       setCurrentExerciseIndex(prev => prev + 1);
       setShowInstructions(false);
+      setShowTimer(false);
+      setCanProceed(false);
     }
   };
   
@@ -52,6 +59,8 @@ const WorkoutDetail: React.FC = () => {
     if (currentExerciseIndex > 0) {
       setCurrentExerciseIndex(prev => prev - 1);
       setShowInstructions(false);
+      setShowTimer(false);
+      setCanProceed(false);
     }
   };
   
@@ -65,7 +74,8 @@ const WorkoutDetail: React.FC = () => {
       workoutName: workout.name,
       completed: true,
       notes: notes,
-      rating: rating
+      rating: rating,
+      exerciseTimeSpent: exerciseTimeSpent
     };
     
     updateProgress(progressEntry);
@@ -74,6 +84,26 @@ const WorkoutDetail: React.FC = () => {
   
   const toggleInstructions = () => {
     setShowInstructions(!showInstructions);
+  };
+  
+  const toggleTimer = () => {
+    setShowTimer(!showTimer);
+  };
+  
+  const handleTimerComplete = () => {
+    setCanProceed(true);
+  };
+  
+  const handleSkipExercise = () => {
+    setCanProceed(true);
+  };
+  
+  const handleTimeSpent = (time: number) => {
+    setExerciseTimeSpent(prev => ({
+      ...prev,
+      [currentExercise.id]: time
+    }));
+    setCanProceed(true);
   };
   
   if (workoutCompleted) {
@@ -253,13 +283,32 @@ const WorkoutDetail: React.FC = () => {
               </div>
             )}
             
-            <button
-              onClick={toggleInstructions}
-              className="flex items-center text-indigo-600 hover:text-indigo-800 mb-2"
-            >
-              <Info className="h-4 w-4 mr-1" />
-              {showInstructions ? 'Hide Instructions' : 'Show Instructions'}
-            </button>
+            <div className="flex space-x-3 mb-4">
+              <button
+                onClick={toggleInstructions}
+                className="flex items-center text-indigo-600 hover:text-indigo-800"
+              >
+                <Info className="h-4 w-4 mr-1" />
+                {showInstructions ? 'Hide Instructions' : 'Show Instructions'}
+              </button>
+              
+              {currentExercise.videoUrl && (
+                <ExerciseVideo 
+                  videoUrl={currentExercise.videoUrl} 
+                  title={currentExercise.name} 
+                />
+              )}
+              
+              {(currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && (
+                <button
+                  onClick={toggleTimer}
+                  className="flex items-center text-indigo-600 hover:text-indigo-800"
+                >
+                  <Clock className="h-4 w-4 mr-1" />
+                  {showTimer ? 'Hide Timer' : 'Show Timer'}
+                </button>
+              )}
+            </div>
             
             {showInstructions && (
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
@@ -296,6 +345,17 @@ const WorkoutDetail: React.FC = () => {
                 </div>
               </div>
             )}
+            
+            {showTimer && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && (
+              <div className="flex justify-center my-6">
+                <ExerciseTimer 
+                  duration={currentExercise.duration} 
+                  onComplete={handleTimerComplete}
+                  onSkip={handleSkipExercise}
+                  onTimeSpent={handleTimeSpent}
+                />
+              </div>
+            )}
           </div>
           
           <div className="flex justify-between mt-8">
@@ -314,12 +374,23 @@ const WorkoutDetail: React.FC = () => {
             
             <button
               onClick={nextExercise}
-              className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded"
+              disabled={!canProceed && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility')}
+              className={`flex items-center px-4 py-2 ${
+                !canProceed && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility')
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              } rounded`}
             >
               {isLastExercise ? 'Complete Workout' : 'Next Exercise'}
               {!isLastExercise && <ChevronRight className="h-5 w-5 ml-1" />}
             </button>
           </div>
+          
+          {(currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && !canProceed && !showTimer && (
+            <div className="text-center mt-4 text-yellow-600">
+              <p>Please start and complete the exercise timer to proceed</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -28,6 +28,7 @@ export interface Exercise {
   equipment: string;
   instructions: string;
   imageUrl?: string; // URL to exercise demonstration image
+  videoUrl?: string; // URL to exercise demonstration video
 }
 
 export interface Workout {
@@ -49,6 +50,7 @@ export interface ProgressEntry {
   notes?: string;
   rating?: number;
   weight?: number;
+  exerciseTimeSpent?: Record<string, number>; // Track time spent on each exercise
 }
 
 export interface Achievement {

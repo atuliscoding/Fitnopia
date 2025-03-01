@@ -1,10 +1,13 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Dumbbell, Award, LineChart } from 'lucide-react';
 import { useWorkout } from '../context/WorkoutContext';
+import { useAuth } from '../context/AuthContext';
 
 const Home: React.FC = () => {
   const { userProfile } = useWorkout();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   
   return (
     <div className="max-w-4xl mx-auto">
@@ -15,29 +18,44 @@ const Home: React.FC = () => {
         </p>
       </div>
       
-      {!userProfile ? (
+      {user ? (
+        userProfile ? (
+          <Link 
+            to="/dashboard" 
+            className="block bg-white rounded-lg shadow-lg p-8 mb-8 hover:shadow-xl transition duration-200"
+          >
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Continue to Your Dashboard</h2>
+            <p className="text-gray-600">
+              View your personalized workouts and track your progress.
+            </p>
+          </Link>
+        ) : (
+          <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Complete Your Profile</h2>
+            <p className="text-gray-600 mb-6">
+              Complete our quick questionnaire to help us understand your fitness goals and create personalized workout plans just for you.
+            </p>
+            <Link 
+              to="/questionnaire" 
+              className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
+            >
+              Take the Questionnaire
+            </Link>
+          </div>
+        )
+      ) : (
         <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Get Started</h2>
           <p className="text-gray-600 mb-6">
-            Complete our quick questionnaire to help us understand your fitness goals and create personalized workout plans just for you.
+            Sign in or create an account to get personalized workout plans and track your fitness progress.
           </p>
-          <Link 
-            to="/questionnaire" 
+          <button 
+            onClick={() => navigate('/auth')}
             className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
           >
-            Take the Questionnaire
-          </Link>
+            Sign In / Sign Up
+          </button>
         </div>
-      ) : (
-        <Link 
-          to="/dashboard" 
-          className="block bg-white rounded-lg shadow-lg p-8 mb-8 hover:shadow-xl transition duration-200"
-        >
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Continue to Your Dashboard</h2>
-          <p className="text-gray-600">
-            View your personalized workouts and track your progress.
-          </p>
-        </Link>
       )}
       
       <div className="grid md:grid-cols-3 gap-6 mb-12">
@@ -90,6 +108,10 @@ const Home: React.FC = () => {
           <li className="flex items-start">
             <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-600 text-white mr-3">✓</span>
             <span>Comprehensive progress tracking to visualize your improvements</span>
+          </li>
+          <li className="flex items-start">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-600 text-white mr-3">✓</span>
+            <span>Secure cloud storage for all your fitness data</span>
           </li>
         </ul>
       </div>

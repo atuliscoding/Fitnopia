@@ -1,31 +1,58 @@
-import React, { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
+import Auth from './pages/Auth';
 import Questionnaire from './pages/Questionnaire';
 import Dashboard from './pages/Dashboard';
 import Workouts from './pages/Workouts';
 import WorkoutDetail from './pages/WorkoutDetail';
 import Progress from './pages/Progress';
 import { WorkoutProvider } from './context/WorkoutContext';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
-    <WorkoutProvider>
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <main className="container mx-auto px-4 py-8">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/questionnaire" element={<Questionnaire />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/workouts" element={<Workouts />} />
-            <Route path="/workouts/:id" element={<WorkoutDetail />} />
-            <Route path="/progress" element={<Progress />} />
-          </Routes>
-        </main>
-      </div>
-    </WorkoutProvider>
+    <AuthProvider>
+      <WorkoutProvider>
+        <div className="min-h-screen bg-gray-50">
+          <Navbar />
+          <main className="container mx-auto px-4 py-8">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/questionnaire" element={
+                <ProtectedRoute>
+                  <Questionnaire />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/workouts" element={
+                <ProtectedRoute>
+                  <Workouts />
+                </ProtectedRoute>
+              } />
+              <Route path="/workouts/:id" element={
+                <ProtectedRoute>
+                  <WorkoutDetail />
+                </ProtectedRoute>
+              } />
+              <Route path="/progress" element={
+                <ProtectedRoute>
+                  <Progress />
+                </ProtectedRoute>
+              } />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
+      </WorkoutProvider>
+    </AuthProvider>
   );
 }
 

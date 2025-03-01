@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkout } from '../context/WorkoutContext';
+import { useAuth } from '../context/AuthContext';
 import { UserProfile } from '../types';
 
 const Questionnaire: React.FC = () => {
   const navigate = useNavigate();
   const { userProfile, setUserProfile, generateWorkouts } = useWorkout();
+  const { user } = useAuth();
   
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<UserProfile>>({
@@ -66,10 +68,16 @@ const Questionnaire: React.FC = () => {
     setCurrentStep(prev => prev - 1);
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setUserProfile(formData as UserProfile);
-    generateWorkouts();
+    
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    
+    await setUserProfile(formData as UserProfile);
+    await generateWorkouts();
     navigate('/dashboard');
   };
   

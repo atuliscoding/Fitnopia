@@ -29,12 +29,29 @@ const Questionnaire: React.FC = () => {
     dietPreference: 'balanced'
   });
   
+  const [loading, setLoading] = useState(true);
+  const [profileExists, setProfileExists] = useState(false);
+  
   // Pre-fill form if user profile exists
   useEffect(() => {
     if (userProfile) {
       setFormData(userProfile);
+      setProfileExists(true);
+      setLoading(false);
+    } else {
+      setLoading(false);
     }
   }, [userProfile]);
+  
+  // Redirect to dashboard if profile exists and not explicitly editing
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isEditing = params.get('edit') === 'true';
+    
+    if (userProfile && !isEditing && !loading) {
+      navigate('/dashboard');
+    }
+  }, [userProfile, navigate, loading]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -77,14 +94,27 @@ const Questionnaire: React.FC = () => {
     }
     
     await setUserProfile(formData as UserProfile);
-    await generateWorkouts();
+    
+    // Only generate workouts if this is a new profile
+    if (!profileExists) {
+      await generateWorkouts();
+    }
+    
     navigate('/dashboard');
   };
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
   
   return (
     <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-8">
       <h1 className="text-2xl font-bold text-indigo-700 mb-6">
-        {userProfile ? 'Update Your Profile' : 'Fitness Questionnaire'}
+        {profileExists ? 'Update Your Profile' : 'Fitness Questionnaire'}
       </h1>
       
       <div className="mb-8">
@@ -483,7 +513,7 @@ const Questionnaire: React.FC = () => {
               type="submit"
               className="ml-auto px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white transition duration-200"
             >
-              {userProfile ? 'Update Profile' : 'Create Profile'}
+              {profileExists ? 'Update Profile' : 'Create Profile'}
             </button>
           )}
         </div>

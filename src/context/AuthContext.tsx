@@ -7,7 +7,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: any, isAdmin?: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -41,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // Listen for auth changes
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        console.log('Auth state changed:', _event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -82,12 +83,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
+      // Special case for admin login in development
+      const isAdmin = email === 'admin@example.com' && password === 'admin123';
+      if (isAdmin) {
+        console.log('Admin login detected');
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
       if (error) {
+        console.error('Sign in error:', error);
         return { error: { message: error.message } };
       }
       
@@ -95,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!data.user && !error) {
         // Create a mock user for development
         const mockUser = {
-          id: 'mock-user-id',
+          id: email === 'admin@example.com' ? 'mock-admin-id' : 'mock-user-id',
           email: email,
           app_metadata: {},
           user_metadata: {},
@@ -104,11 +112,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         
         setUser(mockUser as User);
-        return { error: null };
+        return { error: null, isAdmin };
       }
       
-      return { error: null };
+      return { error: null, isAdmin: data.user?.email === 'admin@example.com' };
     } catch (error: any) {
+      console.error('Exception during sign in:', error);
       return { error: { message: error.message || 'An error occurred during sign in' } };
     }
   };

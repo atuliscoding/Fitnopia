@@ -8,6 +8,9 @@ import Dashboard from './pages/Dashboard';
 import Workouts from './pages/Workouts';
 import WorkoutDetail from './pages/WorkoutDetail';
 import Progress from './pages/Progress';
+import Admin from './pages/Admin';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminExerciseLibrary from './pages/AdminExerciseLibrary';
 import { WorkoutProvider } from './context/WorkoutContext';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -45,6 +48,21 @@ function App() {
               <Route path="/progress" element={
                 <ProtectedRoute>
                   <Progress />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <Admin />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/dashboard" element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/library" element={
+                <ProtectedRoute>
+                  <AdminExerciseLibrary />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<Navigate to="/" replace />} />

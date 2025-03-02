@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Workout, Exercise, ProgressEntry } from '../types';
 import { useAuth } from './AuthContext';
+import { mongodb } from '../lib/mongodb';
 
 // Define the shape of our context
 interface WorkoutContextType {
@@ -15,193 +16,11 @@ interface WorkoutContextType {
   generateWorkouts: () => Promise<void>;
   completeWorkout: (id: string) => Promise<void>;
   updateProgress: (entry: ProgressEntry) => Promise<void>;
+  exerciseDatabase: Omit<Exercise, 'id'>[]; // Expose exercise database to components
 }
 
 // Create the context
 const WorkoutContext = createContext<WorkoutContextType | null>(null);
-
-// Sample exercise database
-const exerciseDatabase: Omit<Exercise, 'id'>[] = [
-  // Strength exercises
-  {
-    name: 'Push-ups',
-    type: 'strength',
-    duration: 60,
-    sets: 3,
-    reps: 10,
-    muscle: 'chest',
-    equipment: 'none',
-    instructions: 'Start in a plank position with hands shoulder-width apart. Lower your body until your chest nearly touches the floor, then push back up.',
-    imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/IODxDxX7oi4'
-  },
-  {
-    name: 'Squats',
-    type: 'strength',
-    duration: 60,
-    sets: 3,
-    reps: 12,
-    muscle: 'legs',
-    equipment: 'none',
-    instructions: 'Stand with feet shoulder-width apart. Lower your body by bending your knees and pushing your hips back as if sitting in a chair. Keep your chest up and back straight.',
-    imageUrl: 'https://images.unsplash.com/photo-1574680178050-55c6a6a96e0a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1469&q=80',
-    videoUrl: 'https://www.youtube.com/embed/YaXPRqUwItQ'
-  },
-  {
-    name: 'Dumbbell Rows',
-    type: 'strength',
-    duration: 60,
-    sets: 3,
-    reps: 10,
-    muscle: 'back',
-    equipment: 'dumbbells',
-    instructions: 'Bend at the waist with a dumbbell in one hand. Pull the dumbbell up to your side while keeping your back straight. Lower and repeat.',
-    imageUrl: 'https://images.unsplash.com/photo-1603287681836-b174ce5074c2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1471&q=80',
-    videoUrl: 'https://www.youtube.com/embed/pYcpY20QaE8'
-  },
-  {
-    name: 'Lunges',
-    type: 'strength',
-    duration: 60,
-    sets: 3,
-    reps: 10,
-    muscle: 'legs',
-    equipment: 'none',
-    instructions: 'Step forward with one leg and lower your body until both knees are bent at 90-degree angles. Push back to the starting position and repeat with the other leg.',
-    imageUrl: 'https://images.unsplash.com/photo-1434682881908-b43d0467b798?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1474&q=80',
-    videoUrl: 'https://www.youtube.com/embed/QOVaHwm-Q6U'
-  },
-  {
-    name: 'Plank',
-    type: 'strength',
-    duration: 60,
-    sets: 3,
-    reps: 1,
-    muscle: 'core',
-    equipment: 'none',
-    instructions: 'Start in a push-up position but with your weight on your forearms. Keep your body in a straight line from head to heels.',
-    imageUrl: 'https://images.unsplash.com/photo-1566241142559-40e1dab266c6?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/pSHjTRCQxIw'
-  },
-  {
-    name: 'Bicep Curls',
-    type: 'strength',
-    duration: 60,
-    sets: 3,
-    reps: 12,
-    muscle: 'arms',
-    equipment: 'dumbbells',
-    instructions: 'Hold a dumbbell in each hand with arms at your sides. Keeping your elbows close to your body, curl the weights up to your shoulders, then lower back down.',
-    imageUrl: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/ykJmrZ5v0Oo'
-  },
-  {
-    name: 'Shoulder Press',
-    type: 'strength',
-    duration: 60,
-    sets: 3,
-    reps: 10,
-    muscle: 'shoulders',
-    equipment: 'dumbbells',
-    instructions: 'Sit or stand with a dumbbell in each hand at shoulder height. Press the weights up until your arms are fully extended, then lower back down.',
-    imageUrl: 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/qEwKCR5JCog'
-  },
-  
-  // Cardio exercises
-  {
-    name: 'Jumping Jacks',
-    type: 'cardio',
-    duration: 120,
-    equipment: 'none',
-    instructions: 'Start with feet together and arms at your sides. Jump to a position with legs spread and arms overhead, then jump back to the starting position.',
-    imageUrl: 'https://images.unsplash.com/photo-1601422407692-ec4eeec1d9b3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1025&q=80',
-    videoUrl: 'https://www.youtube.com/embed/c4DAnQ6DtF8'
-  },
-  {
-    name: 'High Knees',
-    type: 'cardio',
-    duration: 120,
-    equipment: 'none',
-    instructions: 'Run in place, lifting your knees as high as possible with each step. Keep a quick pace.',
-    imageUrl: 'https://images.unsplash.com/photo-1434596922112-19c563067271?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/tx5rgpDAJRI'
-  },
-  {
-    name: 'Mountain Climbers',
-    type: 'cardio',
-    duration: 120,
-    equipment: 'none',
-    instructions: 'Start in a push-up position. Alternately bring each knee toward your chest in a running motion.',
-    imageUrl: 'https://images.unsplash.com/photo-1434682881908-b43d0467b798?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1474&q=80',
-    videoUrl: 'https://www.youtube.com/embed/nmwgirgXLYM'
-  },
-  {
-    name: 'Burpees',
-    type: 'cardio',
-    duration: 120,
-    equipment: 'none',
-    instructions: 'Start standing, then squat down and place hands on the floor. Jump feet back to a plank position, do a push-up, jump feet back to hands, then explosively jump up with arms overhead.',
-    imageUrl: 'https://images.unsplash.com/photo-1599058917765-a780eda07a3e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1469&q=80',
-    videoUrl: 'https://www.youtube.com/embed/TU8QYVW0gDU'
-  },
-  {
-    name: 'Jump Rope',
-    type: 'cardio',
-    duration: 180,
-    equipment: 'jump-rope',
-    instructions: 'Hold the handles of a jump rope with arms at your sides. Swing the rope over your head and jump over it as it passes under your feet.',
-    imageUrl: 'https://images.unsplash.com/photo-1434596922112-19c563067271?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/u3zgHI8QnqE'
-  },
-  
-  // Flexibility exercises
-  {
-    name: 'Hamstring Stretch',
-    type: 'flexibility',
-    duration: 60,
-    equipment: 'none',
-    instructions: 'Sit on the floor with one leg extended and the other bent with the sole of the foot against the inner thigh. Reach toward the toes of the extended leg.',
-    imageUrl: 'https://images.unsplash.com/photo-1566241142559-40e1dab266c6?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/FDwpEdxZ4H4'
-  },
-  {
-    name: 'Quad Stretch',
-    type: 'flexibility',
-    duration: 60,
-    equipment: 'none',
-    instructions: 'Stand on one leg and grab the ankle of the other leg, pulling it toward your buttocks. Keep your knees close together and stand tall.',
-    imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/LaFVV3y-Fr8'
-  },
-  {
-    name: 'Child\'s Pose',
-    type: 'flexibility',
-    duration: 60,
-    equipment: 'yoga-mat',
-    instructions: 'Kneel on the floor with toes together and knees apart. Lower your torso between your knees and extend your arms forward or along your sides.',
-    imageUrl: 'https://images.unsplash.com/photo-1566241142559-40e1dab266c6?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
-    videoUrl: 'https://www.youtube.com/embed/eqVMAPM00DM'
-  },
-  {
-    name: 'Downward Dog',
-    type: 'flexibility',
-    duration: 60,
-    equipment: 'yoga-mat',
-    instructions: 'Start on hands and knees, then lift your hips up and back to form an inverted V shape. Press your heels toward the floor and your chest toward your thighs.',
-    imageUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1520&q=80',
-    videoUrl: 'https://www.youtube.com/embed/EC7RGJ975iM'
-  },
-  {
-    name: 'Cobra Stretch',
-    type: 'flexibility',
-    duration: 60,
-    equipment: 'yoga-mat',
-    instructions: 'Lie face down with hands under shoulders. Push your chest up while keeping your hips on the floor. Look slightly upward.',
-    imageUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1520&q=80',
-    videoUrl: 'https://www.youtube.com/embed/JDcdhTuycOI'
-  }
-];
 
 // Provider component
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -210,6 +29,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [experiencePoints, setExperiencePoints] = useState<number>(0);
   const [progress, setProgress] = useState<ProgressEntry[]>([]);
+  const [exerciseDatabase, setExerciseDatabase] = useState<Omit<Exercise, 'id'>[]>([]);
+  const [isLoadingExercises, setIsLoadingExercises] = useState<boolean>(true);
   
   // Calculate level based on XP
   const level = Math.floor(Math.sqrt(experiencePoints / 100)) + 1;
@@ -223,6 +44,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       loadUserProfile();
       loadWorkouts();
       loadProgress();
+      loadExerciseDatabase();
     } else {
       // Clear data when user logs out
       setUserProfileState(null);
@@ -231,6 +53,42 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setProgress([]);
     }
   }, [user]);
+  
+  // Load exercise database from MongoDB
+  const loadExerciseDatabase = async () => {
+    setIsLoadingExercises(true);
+    try {
+      const exercises = await mongodb.exercises.findAll();
+      
+      if (exercises && exercises.length > 0) {
+        const formattedExercises = exercises.map((ex: any) => ({
+          name: ex.name,
+          type: ex.type as 'strength' | 'cardio' | 'flexibility',
+          duration: ex.duration,
+          sets: ex.sets || undefined,
+          reps: ex.reps || undefined,
+          muscle: ex.muscle || undefined,
+          equipment: ex.equipment,
+          instructions: ex.instructions,
+          imageUrl: ex.imageUrl || undefined,
+          videoUrl: ex.videoUrl || undefined
+        }));
+        
+        setExerciseDatabase(formattedExercises);
+        console.log(`Loaded ${formattedExercises.length} exercises from MongoDB`);
+      } else {
+        console.log('No exercises found in MongoDB, using fallback data');
+        // If no exercises in MongoDB, use fallback data
+        setExerciseDatabase(fallbackExerciseDatabase);
+      }
+    } catch (error) {
+      console.error('Error loading exercise database from MongoDB:', error);
+      // Use fallback data if MongoDB fails
+      setExerciseDatabase(fallbackExerciseDatabase);
+    } finally {
+      setIsLoadingExercises(false);
+    }
+  };
   
   // Load user profile from database
   const loadUserProfile = async () => {
@@ -244,7 +102,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .single();
       
       if (error) {
-        console.error('Error loading user profile:', error);
+        // Only log as error if it's not a "no rows found" error
+        if (error.code !== 'PGRST116') {
+          console.error('Error loading user profile:', error);
+        } else {
+          console.log('No user profile found, user needs to create one');
+        }
         return;
       }
       
@@ -459,6 +322,18 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user || !userProfile) return;
     
     try {
+      // Wait for exercise database to load if it's still loading
+      if (isLoadingExercises) {
+        await new Promise(resolve => {
+          const checkInterval = setInterval(() => {
+            if (!isLoadingExercises) {
+              clearInterval(checkInterval);
+              resolve(true);
+            }
+          }, 100);
+        });
+      }
+      
       const newWorkouts: Workout[] = [];
       const workoutTypes = ['strength', 'cardio', 'flexibility', 'full-body'];
       
@@ -496,7 +371,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Generate a unique ID for this instance
             exercise.id = `ex-${Date.now()}-${j}`;
             
-            workoutExercises.push(exercise);
+            workoutExercises.push(exercise as Exercise);
             
             // Remove the selected exercise to avoid duplicates
             availableExercises.splice(randomIndex, 1);
@@ -589,6 +464,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) return;
     
     try {
+      // Find the workout in our local state first to verify it exists
+      const workoutToComplete = workouts.find(w => w.id === id);
+      if (!workoutToComplete) {
+        console.log('Workout not found in local state:', id);
+        return;
+      }
+      
       // Update workout in database
       const { error } = await supabase
         .from('workouts')
@@ -663,7 +545,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         progress,
         generateWorkouts,
         completeWorkout,
-        updateProgress
+        updateProgress,
+        exerciseDatabase
       }}
     >
       {children}
@@ -679,3 +562,52 @@ export const useWorkout = () => {
   }
   return context;
 };
+
+// Fallback exercise database in case MongoDB is not available
+const fallbackExerciseDatabase: Omit<Exercise, 'id'>[] = [
+  // Strength exercises
+  {
+    name: 'Push-ups',
+    type: 'strength',
+    duration: 60,
+    sets: 3,
+    reps: 10,
+    muscle: 'chest',
+    equipment: 'none',
+    instructions: 'Start in a plank position with hands shoulder-width apart. Lower your body until your chest nearly touches the floor, then push back up.',
+    imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
+    videoUrl: 'https://www.youtube.com/embed/IODxDxX7oi4'
+  },
+  {
+    name: 'Squats',
+    type: 'strength',
+    duration: 60,
+    sets: 3,
+    reps: 12,
+    muscle: 'legs',
+    equipment: 'none',
+    instructions: 'Stand with feet shoulder-width apart. Lower your body by bending your knees and pushing your hips back as if sitting in a chair. Keep your chest up and back straight.',
+    imageUrl: 'https://images.unsplash.com/photo-1574680178050-55c6a6a96e0a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1469&q=80',
+    videoUrl: 'https://www.youtube.com/embed/YaXPRqUwItQ'
+  },
+  // Cardio exercises
+  {
+    name: 'Jumping Jacks',
+    type: 'cardio',
+    duration: 120,
+    equipment: 'none',
+    instructions: 'Start with feet together and arms at your sides. Jump to a position with legs spread and arms overhead, then jump back to the starting position.',
+    imageUrl: 'https://images.unsplash.com/photo-1601422407692-ec4eeec1d9b3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1025&q=80',
+    videoUrl: 'https://www.youtube.com/embed/c4DAnQ6DtF8'
+  },
+  // Flexibility exercises
+  {
+    name: 'Hamstring Stretch',
+    type: 'flexibility',
+    duration: 60,
+    equipment: 'none',
+    instructions: 'Sit on the floor with one leg extended and the other bent with the sole of the foot against the inner thigh. Reach toward the toes of the extended leg.',
+    imageUrl: 'https://images.unsplash.com/photo-1566241142559-40e1dab266c6?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80',
+    videoUrl: 'https://www.youtube.com/embed/FDwpEdxZ4H4'
+  }
+];

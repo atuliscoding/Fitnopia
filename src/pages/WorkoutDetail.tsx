@@ -20,13 +20,39 @@ const WorkoutDetail: React.FC = () => {
   const [showTimer, setShowTimer] = useState(false);
   const [exerciseTimeSpent, setExerciseTimeSpent] = useState<Record<string, number>>({});
   const [canProceed, setCanProceed] = useState(false);
+  const [isRestPeriod, setIsRestPeriod] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const workout = workouts.find(w => w.id === id);
   
-  if (!workout) {
+  useEffect(() => {
+    // Set loading to false once workouts are loaded
+    if (workouts.length > 0) {
+      setLoading(false);
+    }
+    
+    // Check if the workout exists
+    if (!loading && !workout && id) {
+      setError(`Workout with ID ${id} not found`);
+    }
+  }, [workouts, workout, id, loading]);
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+  
+  if (error || !workout) {
     return (
       <div className="max-w-4xl mx-auto text-center py-12">
         <h1 className="text-2xl font-bold text-gray-800 mb-4">Workout Not Found</h1>
+        <p className="text-gray-600 mb-6">
+          {error || "We couldn't find the workout you're looking for."}
+        </p>
         <button
           onClick={() => navigate('/workouts')}
           className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition duration-200"
@@ -42,44 +68,67 @@ const WorkoutDetail: React.FC = () => {
   
   const startWorkout = () => {
     setWorkoutStarted(true);
+    setShowTimer(true);
   };
   
   const nextExercise = () => {
+    if (isRestPeriod) {
+      setIsRestPeriod(false);
+      setCanProceed(false);
+      return;
+    }
+    
     if (isLastExercise) {
       setWorkoutCompleted(true);
     } else {
       setCurrentExerciseIndex(prev => prev + 1);
       setShowInstructions(false);
-      setShowTimer(false);
+      setShowTimer(true);
       setCanProceed(false);
+      
+      // Add rest period between exercises
+      if (!isLastExercise) {
+        setIsRestPeriod(true);
+      }
     }
   };
   
   const prevExercise = () => {
+    if (isRestPeriod) {
+      setIsRestPeriod(false);
+      return;
+    }
+    
     if (currentExerciseIndex > 0) {
       setCurrentExerciseIndex(prev => prev - 1);
       setShowInstructions(false);
-      setShowTimer(false);
+      setShowTimer(true);
       setCanProceed(false);
     }
   };
   
-  const handleCompleteWorkout = () => {
-    completeWorkout(workout.id);
-    
-    const progressEntry: ProgressEntry = {
-      id: `progress-${Date.now()}`,
-      date: new Date().toISOString(),
-      workoutId: workout.id,
-      workoutName: workout.name,
-      completed: true,
-      notes: notes,
-      rating: rating,
-      exerciseTimeSpent: exerciseTimeSpent
-    };
-    
-    updateProgress(progressEntry);
-    navigate('/dashboard');
+  const handleCompleteWorkout = async () => {
+    try {
+      await completeWorkout(workout.id);
+      
+      const progressEntry: ProgressEntry = {
+        id: `progress-${Date.now()}`,
+        date: new Date().toISOString(),
+        workoutId: workout.id,
+        workoutName: workout.name,
+        completed: true,
+        notes: notes,
+        rating: rating,
+        exerciseTimeSpent: exerciseTimeSpent
+      };
+      
+      await updateProgress(progressEntry);
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Error completing workout:', error);
+      // Show error message to user
+      alert('There was an error completing your workout. Please try again.');
+    }
   };
   
   const toggleInstructions = () => {
@@ -95,14 +144,21 @@ const WorkoutDetail: React.FC = () => {
   };
   
   const handleSkipExercise = () => {
-    setCanProceed(true);
+    if (isRestPeriod) {
+      setIsRestPeriod(false);
+      setCanProceed(false);
+    } else {
+      setCanProceed(true);
+    }
   };
   
   const handleTimeSpent = (time: number) => {
-    setExerciseTimeSpent(prev => ({
-      ...prev,
-      [currentExercise.id]: time
-    }));
+    if (!isRestPeriod) {
+      setExerciseTimeSpent(prev => ({
+        ...prev,
+        [currentExercise.id]: time
+      }));
+    }
     setCanProceed(true);
   };
   
@@ -214,6 +270,17 @@ const WorkoutDetail: React.FC = () => {
               ))}
             </div>
             
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <h3 className="font-medium text-yellow-800 mb-2">Workout Tips</h3>
+              <ul className="list-disc list-inside text-yellow-700 text-sm space-y-1">
+                <li>Make sure to read the instructions for each exercise</li>
+                <li>Take the rest periods between exercises to recover</li>
+                <li>Stay hydrated throughout your workout</li>
+                <li>Focus on proper form rather than speed</li>
+                <li>If an exercise is too difficult, modify it to your ability</li>
+              </ul>
+            </div>
+            
             <button
               onClick={startWorkout}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200"
@@ -229,141 +296,168 @@ const WorkoutDetail: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        <div className="bg-indigo-600 text-white p-6">
+        <div className={`${isRestPeriod ? 'bg-green-600' : 'bg-indigo-600'} text-white p-6`}>
           <div className="flex justify-between items-center">
             <h1 className="text-xl font-bold">{workout.name}</h1>
             <div className="text-sm">
-              Exercise {currentExerciseIndex + 1} of {workout.exercises.length}
+              {isRestPeriod 
+                ? `Rest before exercise ${currentExerciseIndex + 1}` 
+                : `Exercise ${currentExerciseIndex + 1} of ${workout.exercises.length}`}
             </div>
           </div>
-          <div className="w-full bg-indigo-700 rounded-full h-1.5 mt-3">
+          <div className="w-full bg-opacity-30 bg-white rounded-full h-1.5 mt-3">
             <div 
               className="bg-white h-1.5 rounded-full" 
-              style={{ width: `${((currentExerciseIndex + 1) / workout.exercises.length) * 100}%` }}
+              style={{ width: `${((currentExerciseIndex + (isRestPeriod ? 0.5 : 1)) / workout.exercises.length) * 100}%` }}
             ></div>
           </div>
         </div>
         
         <div className="p-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">{currentExercise.name}</h2>
-          
-          <div className="flex flex-wrap gap-2 mb-4">
-            <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
-              {currentExercise.type}
-            </span>
-            {currentExercise.muscle && (
-              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
-                {currentExercise.muscle}
-              </span>
-            )}
-            <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
-              {currentExercise.equipment}
-            </span>
-          </div>
-          
-          {currentExercise.imageUrl && (
-            <div className="mb-6 rounded-lg overflow-hidden">
-              <img 
-                src={currentExercise.imageUrl} 
-                alt={currentExercise.name} 
-                className="w-full h-64 object-cover"
-              />
-            </div>
-          )}
-          
-          <div className="mb-6">
-            {currentExercise.type === 'strength' && (
-              <div className="text-lg text-gray-800 mb-2">
-                <span className="font-bold">{currentExercise.sets} sets</span> × <span className="font-bold">{currentExercise.reps} reps</span>
-              </div>
-            )}
-            {(currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && (
-              <div className="text-lg text-gray-800 mb-2">
-                <span className="font-bold">{Math.floor(currentExercise.duration / 60)} minutes</span>
-              </div>
-            )}
-            
-            <div className="flex space-x-3 mb-4">
-              <button
-                onClick={toggleInstructions}
-                className="flex items-center text-indigo-600 hover:text-indigo-800"
-              >
-                <Info className="h-4 w-4 mr-1" />
-                {showInstructions ? 'Hide Instructions' : 'Show Instructions'}
-              </button>
+          {isRestPeriod ? (
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-green-600 mb-2">Rest Period</h2>
+              <p className="text-gray-600 mb-4">
+                Take a moment to recover before the next exercise: <span className="font-semibold">{currentExercise.name}</span>
+              </p>
               
-              {currentExercise.videoUrl && (
-                <ExerciseVideo 
-                  videoUrl={currentExercise.videoUrl} 
-                  title={currentExercise.name} 
-                />
-              )}
-              
-              {(currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && (
-                <button
-                  onClick={toggleTimer}
-                  className="flex items-center text-indigo-600 hover:text-indigo-800"
-                >
-                  <Clock className="h-4 w-4 mr-1" />
-                  {showTimer ? 'Hide Timer' : 'Show Timer'}
-                </button>
-              )}
-            </div>
-            
-            {showInstructions && (
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <p className="text-gray-700">{currentExercise.instructions}</p>
-                
-                <div className="mt-3">
-                  <h4 className="font-medium text-gray-800 mb-1">Tips:</h4>
-                  <ul className="list-disc list-inside text-gray-700 text-sm">
-                    {currentExercise.type === 'strength' && (
-                      <>
-                        <li>Maintain proper form throughout the exercise</li>
-                        <li>Breathe out during the exertion phase</li>
-                        <li>Control the movement, avoid using momentum</li>
-                        <li>Rest 60-90 seconds between sets</li>
-                      </>
-                    )}
-                    {currentExercise.type === 'cardio' && (
-                      <>
-                        <li>Start at a comfortable pace and gradually increase intensity</li>
-                        <li>Focus on maintaining consistent breathing</li>
-                        <li>Stay hydrated throughout the exercise</li>
-                        <li>Modify intensity based on your fitness level</li>
-                      </>
-                    )}
-                    {currentExercise.type === 'flexibility' && (
-                      <>
-                        <li>Stretch to the point of tension, not pain</li>
-                        <li>Hold each stretch without bouncing</li>
-                        <li>Breathe deeply and relax into the stretch</li>
-                        <li>Focus on the muscle being stretched</li>
-                      </>
-                    )}
-                  </ul>
-                </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <h3 className="font-medium text-green-800 mb-2">During Rest</h3>
+                <ul className="list-disc list-inside text-green-700 text-sm space-y-1">
+                  <li>Take deep breaths to regulate your breathing</li>
+                  <li>Hydrate with small sips of water</li>
+                  <li>Gently shake out your muscles to prevent stiffness</li>
+                  <li>Mentally prepare for the next exercise</li>
+                </ul>
               </div>
-            )}
-            
-            {showTimer && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && (
+              
               <div className="flex justify-center my-6">
                 <ExerciseTimer 
-                  duration={currentExercise.duration} 
+                  duration={30} // 30 seconds rest
                   onComplete={handleTimerComplete}
                   onSkip={handleSkipExercise}
                   onTimeSpent={handleTimeSpent}
+                  isRest={true}
+                  exerciseName="Rest Period"
+                  instructions="Take deep breaths and recover before the next exercise. Use this time to hydrate and mentally prepare."
                 />
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">{currentExercise.name}</h2>
+              
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
+                  {currentExercise.type}
+                </span>
+                {currentExercise.muscle && (
+                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
+                    {currentExercise.muscle}
+                  </span>
+                )}
+                <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
+                  {currentExercise.equipment}
+                </span>
+              </div>
+              
+              {currentExercise.imageUrl && (
+                <div className="mb-6 rounded-lg overflow-hidden">
+                  <img 
+                    src={currentExercise.imageUrl} 
+                    alt={currentExercise.name} 
+                    className="w-full h-64 object-cover"
+                  />
+                </div>
+              )}
+              
+              <div className="mb-6">
+                {currentExercise.type === 'strength' && (
+                  <div className="text-lg text-gray-800 mb-2">
+                    <span className="font-bold">{currentExercise.sets} sets</span> × <span className="font-bold">{currentExercise.reps} reps</span>
+                  </div>
+                )}
+                {(currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && (
+                  <div className="text-lg text-gray-800 mb-2">
+                    <span className="font-bold">{Math.floor(currentExercise.duration / 60)} minutes</span>
+                  </div>
+                )}
+                
+                <div className="flex space-x-3 mb-4">
+                  <button
+                    onClick={toggleInstructions}
+                    className="flex items-center text-indigo-600 hover:text-indigo-800"
+                  >
+                    <Info className="h-4 w-4 mr-1" />
+                    {showInstructions ? 'Hide Instructions' : 'Show Instructions'}
+                  </button>
+                  
+                  {currentExercise.videoUrl && (
+                    <ExerciseVideo 
+                      videoUrl={currentExercise.videoUrl} 
+                      title={currentExercise.name} 
+                    />
+                  )}
+                </div>
+                
+                {showInstructions && (
+                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                    <p className="text-gray-700">{currentExercise.instructions}</p>
+                    
+                    <div className="mt-3">
+                      <h4 className="font-medium text-gray-800 mb-1">Tips:</h4>
+                      <ul className="list-disc list-inside text-gray-700 text-sm">
+                        {currentExercise.type === 'strength' && (
+                          <>
+                            <li>Maintain proper form throughout the exercise</li>
+                            <li>Breathe out during the exertion phase</li>
+                            <li>Control the movement, avoid using momentum</li>
+                            <li>Rest 60-90 seconds between sets</li>
+                          </>
+                        )}
+                        {currentExercise.type === 'cardio' && (
+                          <>
+                            <li>Start at a comfortable pace and gradually increase intensity</li>
+                            <li>Focus on maintaining consistent breathing</li>
+                            <li>Stay hydrated throughout the exercise</li>
+                            <li>Modify intensity based on your fitness level</li>
+                          </>
+                        )}
+                        {currentExercise.type === 'flexibility' && (
+                          <>
+                            <li>Stretch to the point of tension, not pain</li>
+                            <li>Hold each stretch without bouncing</li>
+                            <li>Breathe deeply and relax into the stretch</li>
+                            <li>Focus on the muscle being stretched</li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+                
+                {showTimer && (
+                  <div className="flex justify-center my-6">
+                    <ExerciseTimer 
+                      duration={currentExercise.duration} 
+                      onComplete={handleTimerComplete}
+                      onSkip={handleSkipExercise}
+                      onTimeSpent={handleTimeSpent}
+                      exerciseName={currentExercise.name}
+                      instructions={currentExercise.instructions}
+                    />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
           
           <div className="flex justify-between mt-8">
             <button
               onClick={prevExercise}
-              disabled={currentExerciseIndex === 0}
+              disabled={currentExerciseIndex === 0 && !isRestPeriod}
               className={`flex items-center px-4 py-2 rounded ${
-                currentExerciseIndex === 0 
+                currentExerciseIndex === 0 && !isRestPeriod
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
@@ -374,19 +468,25 @@ const WorkoutDetail: React.FC = () => {
             
             <button
               onClick={nextExercise}
-              disabled={!canProceed && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility')}
+              disabled={!canProceed && !isRestPeriod && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility')}
               className={`flex items-center px-4 py-2 ${
-                !canProceed && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility')
+                !canProceed && !isRestPeriod && (currentExercise.type === 'cardio' || currentExercise.type === 'flexibility')
                   ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  : isRestPeriod 
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
               } rounded`}
             >
-              {isLastExercise ? 'Complete Workout' : 'Next Exercise'}
-              {!isLastExercise && <ChevronRight className="h-5 w-5 ml-1" />}
+              {isRestPeriod 
+                ? 'Start Next Exercise' 
+                : isLastExercise 
+                  ? 'Complete Workout' 
+                  : 'Next Exercise'}
+              {!isLastExercise && !isRestPeriod && <ChevronRight className="h-5 w-5 ml-1" />}
             </button>
           </div>
           
-          {(currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && !canProceed && !showTimer && (
+          {(currentExercise.type === 'cardio' || currentExercise.type === 'flexibility') && !canProceed && !showTimer && !isRestPeriod && (
             <div className="text-center mt-4 text-yellow-600">
               <p>Please start and complete the exercise timer to proceed</p>
             </div>
